@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<script>
+  /* ======================================================================
+     PASTE YOUR SUPABASE PROJECT DETAILS HERE (see README.md for setup)
+     ====================================================================== */
+  window.SUPABASE_URL = "YOUR_SUPABASE_URL";           // e.g. "https://xxxxxxxx.supabase.co"
+  window.SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"; // the "anon public" key, Project Settings > API
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Derbingo</title>
+<style>
+  :root{
+    --orange:#FF6223; --slate:#282D37; --bg:#F4F5F6; --card:#FFFFFF;
+    --border:#E2E3E6; --muted:#6B7079; --red:#B3261E;
+    --sky:#D6ECF5; --hillfar:#B9A9D4; --hillmid:#7FB08A; --hillnear:#3E7A54;
+    --font:'Aptos','Segoe UI',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:var(--font);color:var(--slate)}
+  .db-shell{min-height:100vh;padding:16px}
+  .db-wrap{max-width:720px;margin:0 auto}
+  .db-loading{display:flex;align-items:center;justify-content:center;min-height:300px;color:var(--muted);font-size:14px}
+  .db-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px}
+  h1{font-size:22px;margin:0;letter-spacing:-0.4px}
+  h2{font-size:16px;margin:0 0 10px}
+  /* header */
+  .db-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .db-logo{width:40px;height:40px;background:var(--orange);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .db-head-txt{flex:1;min-width:0}
+  .db-sub{font-size:13px;color:var(--muted)}
+  .db-sub strong{color:var(--slate)}
+  /* buttons */
+  .db-btn{font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;border-radius:4px;padding:8px 14px;border:1px solid var(--border);background:var(--card);color:var(--slate);display:inline-flex;align-items:center;gap:6px}
+  .db-btn.active{border-color:var(--slate);background:var(--slate);color:#fff}
+  .db-btn.icon{padding:8px 10px}
+  .db-primary{font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;border-radius:4px;padding:9px 16px;border:none;background:var(--orange);color:#fff;display:inline-flex;align-items:center;gap:4px}
+  .db-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .db-note{font-size:13px;color:var(--muted);line-height:1.5}
+  input,select{font-family:var(--font)}
+  /* banners */
+  .db-banner{border-radius:8px;padding:16px;margin-bottom:14px;display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.5;border:1px solid var(--border);background:var(--card)}
+  .db-banner.win{border-color:var(--orange);background:#FFF3ED}
+  .db-banner .ic{flex-shrink:0;margin-top:1px}
+  /* hills */
+  .db-hills{border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:14px;line-height:0}
+  @keyframes dbCloud{from{transform:translateX(-170px)}to{transform:translateX(800px)}}
+  .db-cloudA{animation:dbCloud 78s linear infinite}
+  .db-cloudB{animation:dbCloud 116s linear infinite;animation-delay:-46s}
+  .db-cloudC{animation:dbCloud 96s linear infinite;animation-delay:-74s}
+  @media (prefers-reduced-motion:reduce){.db-cloudA,.db-cloudB,.db-cloudC{animation:none}}
+  /* board */
+  .db-boardtop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+  .db-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+  .db-sq{position:relative;text-align:left;cursor:pointer;min-height:118px;padding:8px;border-radius:8px;font-family:var(--font);border:1px solid var(--border);background:var(--card);color:var(--slate);display:flex;flex-direction:column;justify-content:space-between;gap:6px}
+  .db-sq:disabled{cursor:default}
+  .db-sq.lit{background:var(--orange);border-color:var(--orange);color:#fff}
+  .db-sq.inline{border-width:2px;border-color:var(--orange)}
+  .db-sq-txt{font-size:11px;line-height:1.3;font-weight:600}
+  .db-sq-foot{display:flex;align-items:center;justify-content:space-between;gap:4px}
+  .db-sq-count{font-size:10px;font-weight:700;color:var(--muted)}
+  .db-sq.lit .db-sq-count{color:#fff}
+  .db-sq-check{width:18px;height:18px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:var(--orange);color:#fff;font-size:12px;font-weight:800}
+  .db-sq.lit .db-sq-check{background:#fff;color:var(--orange)}
+  /* editor */
+  .db-edit-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .db-edit-num{width:22px;text-align:right;font-size:12px;font-weight:700;color:var(--muted);flex-shrink:0}
+  .db-edit-input{flex:1;font-size:13px;padding:7px 9px;border-radius:4px;border:1px solid var(--border);color:var(--slate)}
+  .db-edit-input.centre{border-color:var(--orange)}
+  .db-scroll{max-height:360px;overflow-y:auto;padding-right:4px;margin-bottom:12px}
+  /* leaderboard */
+  .db-lb{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .db-lb-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--border)}
+  .db-lb-row:first-child{border-top:none}
+  .db-lb-row.me{background:#FFF3ED}
+  .db-rank{width:26px;height:26px;border-radius:4px;flex-shrink:0;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;background:var(--slate);color:#fff}
+  .db-rank.first{background:var(--orange)}
+  .db-lb-name{font-size:15px;font-weight:700}
+  .db-lb-meta{font-size:12px;color:var(--muted)}
+  .db-pts{font-size:18px;font-weight:800}
+  /* house */
+  .db-stack{display:flex;flex-direction:column;gap:14px}
+  .db-formrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .db-sel,.db-inp{font-size:14px;padding:8px 10px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--slate)}
+  .db-houses{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+  .db-house-name{font-size:14px;font-weight:700}
+  .db-house-note{font-size:12px;color:var(--muted);line-height:1.4;margin-top:2px}
+  .db-house-fines{font-size:12px;color:var(--muted);margin-top:8px}
+  .db-ledger-row{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+  .db-ledger-amt{color:var(--muted);white-space:nowrap}
+  /* ideas */
+  .db-chips{display:flex;gap:8px;flex-wrap:wrap}
+  .db-chip{font-size:13px;font-weight:600;cursor:pointer;border-radius:4px;padding:6px 12px;border:1px solid var(--border);background:var(--card);color:var(--slate)}
+  .db-chip.active{border-color:var(--slate);background:var(--slate);color:#fff}
+  .db-idea{display:flex;align-items:center;gap:12px;padding:12px}
+  .db-vote{display:flex;flex-direction:column;align-items:center;justify-content:center;width:46px;min-height:46px;border-radius:4px;cursor:pointer;font-family:var(--font);border:1px solid var(--border);background:var(--card);color:var(--slate);flex-shrink:0;font-size:13px;font-weight:800;line-height:1.1}
+  .db-vote.on{border-color:var(--orange);background:#FFF3ED;color:var(--orange)}
+  .db-idea-text{font-size:14px;font-weight:600;line-height:1.4}
+  .db-idea-meta{font-size:12px;color:var(--muted);margin-top:2px}
+  ul{margin:0 0 16px;padding-left:18px;color:var(--muted)}
+  li{margin-bottom:8px;line-height:1.5}
+  /* gate */
+  .db-gate{display:flex;align-items:center;justify-content:center;min-height:80vh}
+  .db-gate-box{max-width:380px;width:100%}
+  .db-gate-card{text-align:center}
+  .db-gate-input{width:100%;padding:10px 12px;font-size:15px;border:1px solid var(--border);border-radius:8px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div id="app" class="db-shell"><div class="db-loading">Loading the board&hellip;</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  "use strict";
+  /* ---- storage shim: same get/set/list contract as the original
+     window.storage, backed by Supabase (shared) + localStorage ("me") ---- */
+  var CONFIGURED = !!(window.SUPABASE_URL && window.SUPABASE_ANON_KEY
+    && window.SUPABASE_URL.indexOf("YOUR_SUPABASE_URL") === -1
+    && window.SUPABASE_ANON_KEY.indexOf("YOUR_SUPABASE_ANON_KEY") === -1);
+
+  var sbClient = null;
+  if (CONFIGURED && window.supabase && window.supabase.createClient) {
+    try { sbClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY); }
+    catch (e) { sbClient = null; }
+  }
+
+  function withTimeout(promise, ms) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error("Request timed out")); }, ms);
+      Promise.resolve(promise).then(
+        function (v) { clearTimeout(t); resolve(v); },
+        function (e) { clearTimeout(t); reject(e); }
+      );
+    });
+  }
+
+  var storage = {
+    ready: !!sbClient,
+    get: function (key, shared) {
+      if (!shared) {
+        try {
+          var v = window.localStorage.getItem("derbingo:" + key);
+          return Promise.resolve(v == null ? null : { value: v });
+        } catch (e) { return Promise.resolve(null); }
+      }
+      if (!sbClient) return Promise.reject(new Error("Supabase is not configured"));
+      return withTimeout(sbClient.from("kv").select("value").eq("key", key).maybeSingle(), 8000)
+        .then(function (res) {
+          if (res.error) throw res.error;
+          if (!res.data) return null;
+          return { value: res.data.value };
+        });
+    },
+    set: function (key, value, shared) {
+      if (!shared) {
+        try { window.localStorage.setItem("derbingo:" + key, value); return Promise.resolve(true); }
+        catch (e) { return Promise.resolve(false); }
+      }
+      if (!sbClient) return Promise.reject(new Error("Supabase is not configured"));
+      return withTimeout(sbClient.from("kv").upsert({ key: key, value: value }, { onConflict: "key" }), 8000)
+        .then(function (res) { if (res.error) throw res.error; return true; });
+    },
+    list: function (prefix, shared) {
+      if (!shared) return Promise.resolve({ keys: [] });
+      if (!sbClient) return Promise.reject(new Error("Supabase is not configured"));
+      return withTimeout(sbClient.from("kv").select("key").like("key", prefix + "%"), 8000)
+        .then(function (res) {
+          if (res.error) throw res.error;
+          return { keys: (res.data || []).map(function (r) { return r.key; }) };
+        });
+    },
+    /* extra: live updates. Not part of the original 3-method contract;
+       the game code below calls it only if present. */
+    onChange: function (cb) {
+      if (!sbClient) return function () {};
+      var t = null;
+      var channel = sbClient.channel("kv-changes").on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "kv" },
+        function () {
+          clearTimeout(t);
+          t = setTimeout(cb, 400);
+        }
+      ).subscribe();
+      return function () { try { sbClient.removeChannel(channel); } catch (e) {} };
+    }
+  };
+  window.storage = storage;
+})();
+</script>
+<script>
+(function(){
+  "use strict";
+  var C={orange:"#FF6223",slate:"#282D37",muted:"#6B7079",red:"#B3261E"};
+  var THRESHOLD=2, TEAM_FINE_CEILING=15;
+  var PT_ACTIVITY=10, PT_PIONEER=5, PT_TEAM=5, PT_PER_FINE_POUND=3;
+
+  var ACTIVITIES=[
+    "Eat at an independent restaurant (not a chain)",
+    "Try a cuisine you've never had before locally",
+    "Roast dinner at a Peak District pub",
+    "Get a proper Bakewell pudding, in Bakewell",
+    "Walk up Mam Tor",
+    "Hike part of Kinder Scout",
+    "Chatsworth House and gardens",
+    "Walk the Monsal Trail",
+    "Explore Haddon Hall",
+    "Heights of Abraham cable cars, Matlock Bath",
+    "Wander Padley Gorge",
+    "Take in the view from Stanage or Curbar Edge",
+    "Team meal out — anywhere but Nando's",
+    "Coffee and cake at an independent cafe",
+    "Visit a Derbyshire farm shop",
+    "Crich Tramway Village",
+    "Poole's Cavern, Buxton",
+    "Catch a village well dressing",
+    "Warm up by the fire in a village pub",
+    "Derwent Valley Mills (UNESCO, on your doorstep)",
+    "Curry or street food in Derby",
+    "Walk the Cromford Canal",
+    "Circuit of Ladybower Reservoir",
+    "Buy something from a Derbyshire maker or market",
+    "Take a colleague somewhere new to them"
+  ];
+  var FINE_PRESETS=[
+    {reason:"Suggested Nando's (again)",amount:2},
+    {reason:"Moaned about the weather",amount:1},
+    {reason:"\"There's nothing to do round here\"",amount:2},
+    {reason:"Slagged off the Peak District",amount:3},
+    {reason:"\"Bakewell pudding is just a tart\"",amount:2},
+    {reason:"Refused to leave the office",amount:2},
+    {reason:"\"I'd rather be in London\"",amount:3}
+  ];
+  var IDEA_CATEGORIES=[
+    {key:"activity",label:"Board ideas",hint:"A new square for the bingo board"},
+    {key:"award",label:"Award ideas",hint:"What the winning prize could be"},
+    {key:"fine",label:"Fine ideas",hint:"A new moan worth fining"}
+  ];
+  var CAT_LABEL={}; IDEA_CATEGORIES.forEach(function(c){CAT_LABEL[c.key]=c.label;});
+  var HOUSE_TIERS=[
+    {max:0,name:"Chatsworth House",note:"Spotless. A true Derbyshire devotee."},
+    {max:3,name:"Haddon Hall",note:"Grand, with the odd draught of grumbling."},
+    {max:7,name:"Hardwick Hall",note:"More glass than wall, more moans than most."},
+    {max:12,name:"A damp terrace in the valley",note:"The negativity is showing in the brickwork."},
+    {max:Infinity,name:"A leaky caravan on the moor",note:"Reform urgently required."}
+  ];
+  var LINES=(function(){var l=[],r,c;
+    for(r=0;r<5;r++)l.push([0,1,2,3,4].map(function(c){return r*5+c;}));
+    for(c=0;c<5;c++)l.push([0,1,2,3,4].map(function(r){return r*5+c;}));
+    l.push([0,6,12,18,24]); l.push([4,8,12,16,20]); return l;})();
+
+  var state={me:"",board:ACTIVITIES.slice(),squares:ACTIVITIES.map(function(){return {completedBy:[]};}),
+    fines:[],ideas:[],view:"board",editing:false,loading:true,storageAvailable:true};
+  var ui={ideaFilter:"all",ideaCat:"activity",finePerson:null,fineOpt:0};
+  var busy=false;
+  var root=document.getElementById("app");
+
+  /* ---- storage (live check every call) ---- */
+  function store(){ return (typeof window!=="undefined"&&window.storage)?window.storage:null; }
+  function sGet(k,sh){var s=store();if(!s)return Promise.resolve(null);return s.get(k,sh).catch(function(){return null;});}
+  function sSet(k,v,sh){var s=store();if(!s)return Promise.resolve(null);return s.set(k,v,sh).catch(function(){return null;});}
+  function sList(p,sh){var s=store();if(!s)return Promise.resolve({keys:[]});return s.list(p,sh).then(function(r){return r||{keys:[]};}).catch(function(){return {keys:[]};});}
+
+  function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];});}
+  function slug(s){return (s||"").trim().toLowerCase();}
+  function houseFor(p){var i=-1,k;for(k=0;k<HOUSE_TIERS.length;k++){if(p<=HOUSE_TIERS[k].max){i=k;break;}}if(i<0)i=HOUSE_TIERS.length-1;var t=HOUSE_TIERS[i];return {name:t.name,note:t.note,index:i};}
+  function catHint(key){var c=IDEA_CATEGORIES.filter(function(x){return x.key===key;})[0];return c?c.hint:"";}
+
+  /* ---- derived ---- */
+  function distinct(sq){var set={};sq.completedBy.forEach(function(p){set[slug(p.person)]=1;});return Object.keys(set).length;}
+  function litFlags(){return state.squares.map(function(s){return distinct(s)>=THRESHOLD;});}
+  function completedLines(lit){return LINES.filter(function(ln){return ln.every(function(i){return lit[i];});});}
+  function teamFineTotal(){return state.fines.reduce(function(a,f){return a+f.amount;},0);}
+  function peopleList(){
+    var map={},order=[];
+    function add(n){var k=slug(n);if(!map[k]){map[k]=n;order.push(n);}}
+    state.squares.forEach(function(s){s.completedBy.forEach(function(p){add(p.person);});});
+    state.fines.forEach(function(f){add(f.person);});
+    if(state.me)add(state.me);
+    return order;
+  }
+  function computeStats(){
+    var lit=litFlags(); var map={};
+    function ensure(n){var k=slug(n);if(!map[k])map[k]={name:n,activities:0,pioneers:0,teamContribs:0,fines:0};return map[k];}
+    state.squares.forEach(function(s,i){
+      var done=s.completedBy.slice().sort(function(a,b){return a.ts-b.ts;});
+      var seen={};
+      done.forEach(function(p,idx){
+        if(seen[slug(p.person)])return; seen[slug(p.person)]=1;
+        var st=ensure(p.person); st.activities++;
+        if(idx===0)st.pioneers++;
+        if(lit[i])st.teamContribs++;
+      });
+    });
+    state.fines.forEach(function(f){ensure(f.person).fines+=f.amount;});
+    return Object.keys(map).map(function(k){var st=map[k];
+      st.points=st.activities*PT_ACTIVITY+st.pioneers*PT_PIONEER+st.teamContribs*PT_TEAM-st.fines*PT_PER_FINE_POUND;
+      return st;
+    }).sort(function(a,b){return b.points-a.points||b.activities-a.activities;});
+  }
+  function fineOptions(){
+    var extra=state.ideas.filter(function(i){return i.category==="fine";}).map(function(i){return {reason:i.text,amount:i.amount||1};});
+    return FINE_PRESETS.concat(extra);
+  }
+
+  /* ---- load & actions ---- */
+  function loadAll(){
+    var s=store();
+    if(!s){state.storageAvailable=false;state.loading=false;renderApp();return;}
+    state.storageAvailable=(s.ready!==false);
+    return sGet("me",false).then(function(r){if(r&&r.value)state.me=r.value;})
+    .then(function(){return sGet("board",true);}).then(function(r){
+      if(r&&r.value){try{var a=JSON.parse(r.value);if(Array.isArray(a)&&a.length===25)state.board=a;}catch(e){}}
+    })
+    .then(function(){return Promise.all(ACTIVITIES.map(function(_,i){return sGet("square:"+i,true);}));})
+    .then(function(res){state.squares=res.map(function(r){if(r&&r.value){try{return JSON.parse(r.value);}catch(e){}}return {completedBy:[]};});})
+    .then(function(){return sList("fine:",true);})
+    .then(function(l){return Promise.all((l.keys||[]).map(function(k){return sGet(k,true);}));})
+    .then(function(res){var out=[];res.forEach(function(r){if(r&&r.value){try{out.push(JSON.parse(r.value));}catch(e){}}});out.sort(function(a,b){return b.ts-a.ts;});state.fines=out;})
+    .then(function(){return sList("idea:",true);})
+    .then(function(l){return Promise.all((l.keys||[]).map(function(k){return sGet(k,true);}));})
+    .then(function(res){var out=[];res.forEach(function(r){if(r&&r.value){try{out.push(JSON.parse(r.value));}catch(e){}}});out.sort(function(a,b){return b.ts-a.ts;});state.ideas=out;})
+    .then(function(){state.loading=false;renderApp();})
+    .catch(function(){state.loading=false;renderApp();});
+  }
+  function saveName(n){n=(n||"").trim();if(!n)return;state.me=n;sSet("me",n,false);renderApp();}
+  function saveBoard(draft){
+    var clean=draft.map(function(t,i){return (t&&t.trim())?t.trim():ACTIVITIES[i];});
+    state.board=clean; sSet("board",JSON.stringify(clean),true); state.editing=false; renderApp();
+  }
+  function claimSquare(i){
+    if(busy||!state.me)return; busy=true;
+    sGet("square:"+i,true).then(function(latest){
+      var cur={completedBy:[]};
+      if(latest&&latest.value){try{cur=JSON.parse(latest.value);}catch(e){}}
+      if(cur.completedBy.some(function(p){return slug(p.person)===slug(state.me);})){busy=false;return;}
+      cur.completedBy.push({person:state.me,ts:Date.now()});
+      return sSet("square:"+i,JSON.stringify(cur),true).then(function(){state.squares[i]=cur;});
+    }).then(function(){busy=false;renderApp();});
+  }
+  function addFine(person,reason,amount){
+    if(busy)return; person=(person||"").trim(); if(!person||!reason||!amount)return; busy=true;
+    var entry={id:"fine:"+Date.now()+":"+Math.random().toString(36).slice(2,7),person:person,reason:reason,amount:Number(amount),ts:Date.now()};
+    sSet(entry.id,JSON.stringify(entry),true).then(function(){state.fines.unshift(entry);busy=false;renderApp();});
+  }
+  function addIdea(category,text,amount){
+    if(busy)return; text=(text||"").trim(); if(!text)return; busy=true;
+    var entry={id:"idea:"+Date.now()+":"+Math.random().toString(36).slice(2,7),category:category,text:text,
+      amount:category==="fine"?(Number(amount)||1):null,author:state.me,votes:[state.me],ts:Date.now()};
+    sSet(entry.id,JSON.stringify(entry),true).then(function(){
+      state.ideas.unshift(entry); busy=false;
+      var t=document.getElementById("db-idea-text"); if(t)t.value="";
+      renderIdeaList(); updateFilterChips();
+    });
+  }
+  function toggleVote(id){
+    if(busy)return; busy=true;
+    sGet(id,true).then(function(latest){
+      var cur=state.ideas.filter(function(x){return x.id===id;})[0];
+      if(latest&&latest.value){try{cur=JSON.parse(latest.value);}catch(e){}}
+      if(!cur){busy=false;return;}
+      var has=cur.votes.some(function(v){return slug(v)===slug(state.me);});
+      cur.votes=has?cur.votes.filter(function(v){return slug(v)!==slug(state.me);}):cur.votes.concat([state.me]);
+      return sSet(id,JSON.stringify(cur),true).then(function(){
+        state.ideas=state.ideas.map(function(x){return x.id===id?cur:x;});
+      });
+    }).then(function(){busy=false;renderIdeaList();});
+  }
+
+  /* ---- svg pieces ---- */
+  function pinSVG(){return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';}
+  function hillsHTML(){
+    return '<div class="db-hills"><svg viewBox="0 0 720 132" preserveAspectRatio="none" width="100%" height="116" style="display:block" aria-hidden="true">'
+      +'<rect x="0" y="0" width="720" height="132" fill="var(--sky)"/>'
+      +'<circle cx="602" cy="40" r="18" fill="'+C.orange+'"/>'
+      +'<g stroke="'+C.orange+'" stroke-width="3" stroke-linecap="round" opacity="0.65">'
+      +'<line x1="602" y1="12" x2="602" y2="4"/><line x1="629" y1="19" x2="635" y2="13"/><line x1="575" y1="19" x2="569" y2="13"/>'
+      +'<line x1="634" y1="40" x2="642" y2="40"/><line x1="570" y1="40" x2="562" y2="40"/></g>'
+      +'<g class="db-cloudA" fill="#fff"><ellipse cx="120" cy="34" rx="26" ry="12"/><ellipse cx="146" cy="30" rx="20" ry="14"/><ellipse cx="98" cy="31" rx="16" ry="11"/></g>'
+      +'<g class="db-cloudB" fill="#fff" opacity="0.92"><ellipse cx="330" cy="22" rx="22" ry="10"/><ellipse cx="352" cy="19" rx="16" ry="11"/></g>'
+      +'<g class="db-cloudC" fill="#fff" opacity="0.85"><ellipse cx="500" cy="30" rx="18" ry="9"/><ellipse cx="518" cy="27" rx="13" ry="9"/></g>'
+      +'<path d="M0 78 C120 56 240 74 360 62 C480 50 600 74 720 60 L720 132 L0 132 Z" fill="var(--hillfar)"/>'
+      +'<path d="M0 96 C150 76 300 96 450 80 C570 68 640 90 720 80 L720 132 L0 132 Z" fill="var(--hillmid)"/>'
+      +'<path d="M0 114 C120 100 260 116 400 104 C520 94 620 112 720 100 L720 132 L0 132 Z" fill="var(--hillnear)"/>'
+      +'<path d="M0 126 C160 118 300 128 460 122 C580 118 660 126 720 122 L720 132 L0 132 Z" fill="'+C.slate+'"/>'
+      +'</svg></div>';
+  }
+  function houseSVG(tier){
+    var S=C.slate,O=C.orange,vb='viewBox="0 0 84 56" width="76" height="50" aria-hidden="true"';
+    if(tier===0)return '<svg '+vb+'><rect x="16" y="24" width="52" height="24" fill="#fff" stroke="'+S+'" stroke-width="2"/><polygon points="30,24 42,12 54,24" fill="'+O+'" stroke="'+S+'" stroke-width="2" stroke-linejoin="round"/><line x1="22" y1="28" x2="22" y2="48" stroke="'+S+'" stroke-width="2"/><line x1="30" y1="28" x2="30" y2="48" stroke="'+S+'" stroke-width="2"/><line x1="54" y1="28" x2="54" y2="48" stroke="'+S+'" stroke-width="2"/><line x1="62" y1="28" x2="62" y2="48" stroke="'+S+'" stroke-width="2"/><rect x="39" y="34" width="6" height="14" fill="'+O+'"/><line x1="8" y1="50" x2="76" y2="50" stroke="'+S+'" stroke-width="2.5" stroke-linecap="round"/></svg>';
+    if(tier===1)return '<svg '+vb+'><rect x="16" y="28" width="34" height="20" fill="#fff" stroke="'+S+'" stroke-width="2"/><rect x="48" y="18" width="18" height="30" fill="#fff" stroke="'+S+'" stroke-width="2"/><rect x="48" y="14" width="4" height="4" fill="'+S+'"/><rect x="56" y="14" width="4" height="4" fill="'+S+'"/><rect x="63" y="14" width="3" height="4" fill="'+S+'"/><path d="M26 48 v-7 a5 5 0 0 1 10 0 v7" fill="'+O+'" stroke="'+S+'" stroke-width="2" stroke-linejoin="round"/><rect x="52" y="26" width="10" height="10" fill="'+O+'" stroke="'+S+'" stroke-width="1.5"/><line x1="8" y1="50" x2="76" y2="50" stroke="'+S+'" stroke-width="2.5" stroke-linecap="round"/></svg>';
+    if(tier===2)return '<svg '+vb+'><rect x="26" y="9" width="32" height="3" fill="'+S+'"/><rect x="26" y="12" width="32" height="36" fill="#fff" stroke="'+S+'" stroke-width="2"/><rect x="31" y="17" width="9" height="8" fill="'+O+'"/><rect x="44" y="17" width="9" height="8" fill="'+O+'"/><rect x="31" y="28" width="9" height="8" fill="'+O+'"/><rect x="44" y="28" width="9" height="8" fill="'+O+'"/><rect x="31" y="39" width="9" height="7" fill="'+O+'"/><rect x="44" y="39" width="9" height="7" fill="'+O+'"/><line x1="8" y1="50" x2="76" y2="50" stroke="'+S+'" stroke-width="2.5" stroke-linecap="round"/></svg>';
+    if(tier===3)return '<svg '+vb+'><polygon points="12,30 21,20 30,30" fill="#fff" stroke="'+S+'" stroke-width="1.8" stroke-linejoin="round"/><rect x="13" y="30" width="16" height="18" fill="#fff" stroke="'+S+'" stroke-width="1.8"/><rect x="17" y="35" width="8" height="7" fill="'+O+'"/><polygon points="32,30 41,20 50,30" fill="#fff" stroke="'+S+'" stroke-width="1.8" stroke-linejoin="round"/><rect x="33" y="30" width="16" height="18" fill="#fff" stroke="'+S+'" stroke-width="1.8"/><rect x="38" y="38" width="6" height="10" fill="'+O+'"/><polygon points="52,30 61,20 70,30" fill="#fff" stroke="'+S+'" stroke-width="1.8" stroke-linejoin="round"/><rect x="53" y="30" width="16" height="18" fill="#fff" stroke="'+S+'" stroke-width="1.8"/><rect x="57" y="35" width="8" height="7" fill="'+O+'"/><line x1="6" y1="50" x2="78" y2="50" stroke="'+S+'" stroke-width="2.5" stroke-linecap="round"/></svg>';
+    return '<svg '+vb+'><rect x="14" y="24" width="46" height="18" rx="6" fill="#fff" stroke="'+S+'" stroke-width="2"/><path d="M60 34 h11 v-4" fill="none" stroke="'+S+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="26" cy="44" r="4.5" fill="'+S+'"/><circle cx="48" cy="44" r="4.5" fill="'+S+'"/><rect x="20" y="28" width="11" height="9" fill="'+O+'"/><line x1="38" y1="42" x2="38" y2="47" stroke="'+O+'" stroke-width="2" stroke-linecap="round"/><line x1="44" y1="42" x2="44" y2="46" stroke="'+O+'" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="50" x2="78" y2="50" stroke="'+S+'" stroke-width="2.5" stroke-linecap="round"/></svg>';
+  }
+
+  /* ---- render ---- */
+  function renderApp(){
+    if(state.loading){root.innerHTML='<div class="db-loading">Loading the board…</div>';return;}
+    if(!state.me){root.innerHTML=gateHTML();wireGate();return;}
+    var lit=litFlags(); var litCount=lit.filter(Boolean).length;
+    root.innerHTML='<div class="db-wrap">'+headerHTML(litCount)+hillsHTML()+warnHTML()+bannerHTML(lit)+tabsHTML()+'<div id="db-view"></div></div>';
+    wireHeaderTabs();
+    renderView();
+  }
+  function headerHTML(litCount){
+    return '<div class="db-head"><div class="db-logo">'+pinSVG()+'</div>'
+      +'<div class="db-head-txt"><h1>Derbingo</h1><div class="db-sub">Playing as <strong>'+esc(state.me)+'</strong> · '+litCount+'/25 squares lit</div></div>'
+      +'<button class="db-btn icon" id="db-refresh" title="Refresh from the team board"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="'+C.slate+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v5h-5"/></svg></button></div>';
+  }
+  function warnHTML(){
+    if(state.storageAvailable)return "";
+    return '<div class="db-banner"><div class="db-note">Shared saving isn\'t active in this view, so your changes stay on this device only. Open the published or shared link and everything will sync across the whole team.</div></div>';
+  }
+  function bannerHTML(lit){
+    var lines=completedLines(lit); var pot=teamFineTotal(); var full=lit.every(Boolean);
+    if(lines.length>0 && pot<TEAM_FINE_CEILING){
+      return '<div class="db-banner win"><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+C.orange+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.2 13.5 7 22l5-3 5 3-1.2-8.5"/></svg></span><div><strong>Bingo — the award is unlocked.</strong> '
+        +(full?"Full house, no less.":(lines.length+" line"+(lines.length>1?"s":"")+" complete"))
+        +' and the fine pot is under £'+TEAM_FINE_CEILING+'. Time to hand out the prize.</div></div>';
+    }
+    if(lines.length>0){
+      return '<div class="db-banner"><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+C.slate+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><div>A line\'s complete — but the fine pot is <strong>£'+pot+'</strong>, over the £'+TEAM_FINE_CEILING+' limit. Bring the negativity down to claim the award.</div></div>';
+    }
+    return "";
+  }
+  function tabsHTML(){
+    function t(v,label){return '<button class="db-btn'+(state.view===v?" active":"")+'" data-view="'+v+'">'+label+'</button>';}
+    return '<div class="db-tabs">'+t("board","Board")+t("leaderboard","Leaderboard")+t("house","The house you built")+t("ideas","Suggestions")+t("rules","How it works")+'</div>';
+  }
+  function renderView(){
+    var v=document.getElementById("db-view");
+    if(state.view==="board"&&!state.editing){v.innerHTML=boardHTML();wireBoard();}
+    else if(state.view==="board"&&state.editing){v.innerHTML=editorHTML();wireEditor();}
+    else if(state.view==="leaderboard"){v.innerHTML=leaderboardHTML();}
+    else if(state.view==="house"){v.innerHTML=houseHTML();wireHouse();}
+    else if(state.view==="ideas"){v.innerHTML=ideasHTML();wireIdeas();}
+    else if(state.view==="rules"){v.innerHTML=rulesHTML();}
+  }
+
+  function boardHTML(){
+    var lit=litFlags(); var lineSet={}; completedLines(lit).forEach(function(ln){ln.forEach(function(i){lineSet[i]=1;});});
+    var cells=state.board.map(function(act,i){
+      var names={}; var order=[]; state.squares[i].completedBy.forEach(function(p){if(!names[slug(p.person)]){names[slug(p.person)]=1;order.push(p.person);}});
+      var count=order.length; var mine=order.some(function(n){return slug(n)===slug(state.me);});
+      var cls="db-sq"+(lit[i]?" lit":"")+(lineSet[i]?" inline":"");
+      return '<button class="'+cls+'" data-i="'+i+'"'+(mine?" disabled":"")+'>'
+        +'<span class="db-sq-txt">'+esc(act)+'</span>'
+        +'<span class="db-sq-foot"><span class="db-sq-count">'+count+'/'+THRESHOLD+(count>THRESHOLD?"+":"")+'</span>'
+        +(mine?'<span class="db-sq-check">✓</span>':'')+'</span></button>';
+    }).join("");
+    return '<div class="db-boardtop"><span class="db-note">Tap a square when you\'ve done it.</span>'
+      +'<button class="db-btn" id="db-edit-open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+C.slate+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit board</button></div>'
+      +'<div class="db-grid" id="db-board-grid">'+cells+'</div>';
+  }
+  function editorHTML(){
+    var rows=state.board.map(function(t,i){
+      return '<div class="db-edit-row"><span class="db-edit-num">'+(i+1)+'</span>'
+        +'<input class="db-edit-input'+(i===12?" centre":"")+'" data-i="'+i+'" value="'+esc(t)+'"/></div>';
+    }).join("");
+    return '<div class="db-card"><div class="db-note" style="margin-bottom:12px">Edit any of the 25 squares. Square 13 is the centre. Saving changes the board for everyone, and existing ticks stay with their square.'
+      +(state.storageAvailable?"":" (Shared saving isn\'t active here, so this will only change your own view for now.)")+'</div>'
+      +'<div class="db-scroll">'+rows+'</div>'
+      +'<div class="db-chips"><button class="db-primary" id="db-edit-save">Save board</button>'
+      +'<button class="db-btn" id="db-edit-cancel">Cancel</button>'
+      +'<button class="db-btn" id="db-edit-reset"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+C.slate+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Reset to defaults</button></div></div>';
+  }
+  function leaderboardHTML(){
+    var stats=computeStats();
+    if(stats.length===0)return '<div class="db-card db-note">No activity yet. Tick a square to get on the board.</div>';
+    var rows=stats.map(function(s,i){
+      var isMe=slug(s.name)===slug(state.me);
+      return '<div class="db-lb-row'+(isMe?" me":"")+'"><div class="db-rank'+(i===0?" first":"")+'">'+(i+1)+'</div>'
+        +'<div style="flex:1;min-width:0"><div class="db-lb-name">'+esc(s.name)+(isMe?" (you)":"")+'</div>'
+        +'<div class="db-lb-meta">'+s.activities+' done · '+s.pioneers+' first · '+s.teamContribs+' team-lit'+(s.fines>0?(" · £"+s.fines+" fined"):"")+'</div></div>'
+        +'<div class="db-pts" style="color:'+(s.points<0?C.red:C.slate)+'">'+s.points+'</div></div>';
+    }).join("");
+    return '<div class="db-lb">'+rows+'</div>';
+  }
+  function houseHTML(){
+    var opts=fineOptions(); var pot=teamFineTotal();
+    if(ui.fineOpt>opts.length)ui.fineOpt=0;
+    var roster=peopleList(); if(roster.length===0)roster=[state.me];
+    var personOpts=roster.map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join("");
+    var fineOpts=opts.map(function(p,i){return '<option value="'+i+'">'+esc(p.reason)+' (£'+p.amount+')</option>';}).join("")
+      +'<option value="'+opts.length+'">Something else…</option>';
+    var stats=computeStats(); var byP={}; stats.forEach(function(s){byP[slug(s.name)]=s.fines;});
+    var cards=roster.map(function(n){
+      var pounds=byP[slug(n)]||0; var h=houseFor(pounds); var isMe=slug(n)===slug(state.me);
+      return '<div class="db-card" style="border-color:'+(isMe?C.orange:"var(--border)")+'">'
+        +'<div style="height:50px;margin-bottom:10px">'+houseSVG(h.index)+'</div>'
+        +'<strong style="font-size:15px">'+esc(n)+(isMe?" (you)":"")+'</strong>'
+        +'<div class="db-house-name" style="color:'+(h.index>=3?C.red:C.slate)+'">'+esc(h.name)+'</div>'
+        +'<div class="db-house-note">'+esc(h.note)+'</div>'
+        +'<div class="db-house-fines">£'+pounds+' in fines</div></div>';
+    }).join("");
+    var ledger="";
+    if(state.fines.length>0){
+      var rows=state.fines.map(function(f){return '<div class="db-ledger-row"><span><strong>'+esc(f.person)+'</strong> — '+esc(f.reason)+'</span><span class="db-ledger-amt">£'+f.amount+'</span></div>';}).join("");
+      ledger='<div class="db-card"><div style="font-size:13px;font-weight:700;margin-bottom:8px">The ledger</div><div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto">'+rows+'</div></div>';
+    }
+    return '<div class="db-stack">'
+      +'<div class="db-card"><div class="db-note" style="margin-bottom:10px">Every moan about Derbyshire is a fine — and your fines build the house you live in. Anyone can log one. Team pot: <strong style="color:'+(pot>=15?C.red:C.slate)+'">£'+pot+'</strong> (must stay under £15 to claim bingo).</div>'
+      +'<div class="db-formrow"><select class="db-sel" id="db-fine-person">'+personOpts+'</select>'
+      +'<select class="db-sel" id="db-fine-opt" style="flex:1;min-width:180px">'+fineOpts+'</select>'
+      +'<span id="db-fine-custom" style="display:none;gap:8px;flex:1;min-width:200px"><input class="db-inp" id="db-fine-reason" placeholder="Reason" style="flex:1;min-width:120px"/><input class="db-inp" id="db-fine-amount" type="number" min="1" value="1" style="width:64px"/></span>'
+      +'<button class="db-primary" id="db-fine-add">+ Fine</button></div></div>'
+      +'<div class="db-houses">'+cards+'</div>'+ledger+'</div>';
+  }
+  function ideasHTML(){
+    var amtDisplay=ui.ideaCat==="fine"?"block":"none";
+    var catOpts=IDEA_CATEGORIES.map(function(c){return '<option value="'+c.key+'">'+c.label+'</option>';}).join("");
+    var chips='<button class="db-chip'+(ui.ideaFilter==="all"?" active":"")+'" data-f="all">All</button>'
+      +IDEA_CATEGORIES.map(function(c){return '<button class="db-chip'+(ui.ideaFilter===c.key?" active":"")+'" data-f="'+c.key+'">'+c.label+'</button>';}).join("");
+    return '<div class="db-stack">'
+      +'<div class="db-card"><div class="db-note" style="margin-bottom:10px">Pitch a new board square, an award idea, or a fineable offence. Everyone can upvote. Fine ideas appear straight away in the fine list on the house tab; top board ideas can be rolled in via Edit board.</div>'
+      +'<div class="db-formrow"><select class="db-sel" id="db-idea-cat">'+catOpts+'</select>'
+      +'<input class="db-inp" id="db-idea-text" placeholder="'+esc(catHint(ui.ideaCat))+'" style="flex:1;min-width:180px"/>'
+      +'<span id="db-idea-amt-wrap" style="display:'+amtDisplay+'"><input class="db-inp" id="db-idea-amount" type="number" min="1" value="1" style="width:64px" title="Fine amount in £"/></span>'
+      +'<button class="db-primary" id="db-idea-add">+ Submit</button></div></div>'
+      +'<div class="db-chips" id="db-idea-chips">'+chips+'</div>'
+      +'<div id="db-idea-list"></div></div>';
+  }
+  function renderIdeaList(){
+    var box=document.getElementById("db-idea-list"); if(!box)return;
+    var shown=state.ideas.filter(function(i){return ui.ideaFilter==="all"||i.category===ui.ideaFilter;})
+      .slice().sort(function(a,b){return b.votes.length-a.votes.length||b.ts-a.ts;});
+    if(shown.length===0){box.innerHTML='<div class="db-card db-note">No suggestions yet. Be the first.</div>';return;}
+    box.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+shown.map(function(i){
+      var voted=i.votes.some(function(v){return slug(v)===slug(state.me);});
+      return '<div class="db-card db-idea"><button class="db-vote'+(voted?" on":"")+'" data-vote="'+esc(i.id)+'">▲<span>'+i.votes.length+'</span></button>'
+        +'<div style="flex:1;min-width:0"><div class="db-idea-text">'+esc(i.text)+(i.category==="fine"&&i.amount?(" (£"+i.amount+")"):"")+'</div>'
+        +'<div class="db-idea-meta">'+esc(CAT_LABEL[i.category])+' · suggested by '+esc(i.author)+'</div></div></div>';
+    }).join("")+'</div>';
+    box.querySelectorAll("[data-vote]").forEach(function(b){b.onclick=function(){toggleVote(b.getAttribute("data-vote"));};});
+  }
+  function updateFilterChips(){
+    document.querySelectorAll(".db-chip").forEach(function(b){b.classList.toggle("active",b.dataset.f===ui.ideaFilter);});
+  }
+  function rulesHTML(){
+    return '<div class="db-card" style="font-size:14px;color:var(--slate)">'
+      +'<h2>The carrot</h2><ul>'
+      +'<li>Tick a square when you\'ve done that activity. Each one earns you '+PT_ACTIVITY+' points.</li>'
+      +'<li>First to a square gets a '+PT_PIONEER+'-point pioneer bonus — reward for going beyond Nando\'s.</li>'
+      +'<li>A square only lights up for the <strong style="color:var(--slate)">team</strong> once '+THRESHOLD+' different people have done it. Everyone who contributed gets another '+PT_TEAM+' points. No solo-running the board.</li>'
+      +'<li>Bingo is any full row, column or diagonal of lit squares. Fill all 25 for a full house.</li></ul>'
+      +'<h2>The stick</h2><ul>'
+      +'<li>Negativity about Derbyshire is a fine, logged on the house tab by anyone. Every £1 fined docks '+PT_PER_FINE_POUND+' points from that person.</li>'
+      +'<li>Your fines build the house you live in — stay clean and you\'re in Chatsworth; keep moaning and you\'re in a caravan on the moor.</li>'
+      +'<li>The team can\'t claim bingo while the fine pot is £'+TEAM_FINE_CEILING+' or over. A line isn\'t enough if morale\'s in the gutter.</li></ul>'
+      +'<h2>Running the board</h2><ul>'
+      +'<li>Use Edit board on the board tab to change any of the 25 squares. Changes save for everyone and keep existing ticks.</li>'
+      +'<li>Gather squares, award and fine ideas on the Suggestions tab, then roll the popular ones in.</li></ul>'
+      +'<p style="margin:0;color:var(--muted)">Share this link with the team — everyone ticks their own squares and the board, leaderboard, fines and suggestions update for all of you.</p></div>';
+  }
+  function gateHTML(){
+    return '<div class="db-gate"><div class="db-gate-box">'+hillsHTML()
+      +'<div class="db-card db-gate-card"><h1 style="font-size:24px;margin:0 0 6px">Derbingo</h1>'
+      +'<p class="db-note" style="margin:0 0 18px">Add your name to join the team board. Your ticks and points are logged against it.</p>'
+      +'<input class="db-gate-input" id="db-name" placeholder="Your name"/>'
+      +'<button class="db-primary" id="db-join" style="width:100%;justify-content:center">Join the board</button>'
+      +(state.storageAvailable?"":'<p class="db-note" style="margin-top:12px">Shared saving isn\'t active here — open the published or shared link for the board to sync across the team.</p>')
+      +'</div></div></div>';
+  }
+
+  /* ---- wiring ---- */
+  function wireGate(){
+    var inp=document.getElementById("db-name"), btn=document.getElementById("db-join");
+    btn.onclick=function(){saveName(inp.value);};
+    inp.onkeydown=function(e){if(e.key==="Enter")saveName(inp.value);};
+    inp.focus();
+  }
+  function wireHeaderTabs(){
+    document.getElementById("db-refresh").onclick=function(){loadAll();};
+    document.querySelectorAll("[data-view]").forEach(function(b){b.onclick=function(){state.view=b.getAttribute("data-view");state.editing=false;renderApp();};});
+  }
+  function wireBoard(){
+    document.querySelectorAll(".db-sq").forEach(function(b){b.onclick=function(){claimSquare(Number(b.getAttribute("data-i")));};});
+    document.getElementById("db-edit-open").onclick=function(){state.editing=true;renderApp();};
+  }
+  function wireEditor(){
+    document.getElementById("db-edit-save").onclick=function(){
+      var draft=[].slice.call(document.querySelectorAll(".db-edit-input")).map(function(inp){return inp.value;});
+      saveBoard(draft);
+    };
+    document.getElementById("db-edit-cancel").onclick=function(){state.editing=false;renderApp();};
+    document.getElementById("db-edit-reset").onclick=function(){
+      document.querySelectorAll(".db-edit-input").forEach(function(inp,i){inp.value=ACTIVITIES[i];});
+    };
+  }
+  function wireHouse(){
+    var opts=fineOptions();
+    var person=document.getElementById("db-fine-person");
+    var opt=document.getElementById("db-fine-opt");
+    var custom=document.getElementById("db-fine-custom");
+    if(ui.finePerson){ for(var k=0;k<person.options.length;k++){ if(person.options[k].value===ui.finePerson){person.value=ui.finePerson;break;} } }
+    opt.value=String(ui.fineOpt);
+    function toggle(){custom.style.display=(Number(opt.value)===opts.length)?"flex":"none";}
+    toggle();
+    opt.onchange=function(){ui.fineOpt=Number(opt.value);toggle();};
+    person.onchange=function(){ui.finePerson=person.value;};
+    document.getElementById("db-fine-add").onclick=function(){
+      var idx=Number(opt.value), p=person.value;
+      if(idx===opts.length){
+        var reason=document.getElementById("db-fine-reason").value.trim();
+        var amt=Number(document.getElementById("db-fine-amount").value)||1;
+        if(!reason)return; addFine(p,reason,amt);
+      }else{ addFine(p,opts[idx].reason,opts[idx].amount); }
+    };
+  }
+  function wireIdeas(){
+    var cat=document.getElementById("db-idea-cat"); cat.value=ui.ideaCat;
+    var amtWrap=document.getElementById("db-idea-amt-wrap");
+    var text=document.getElementById("db-idea-text");
+    function toggle(){amtWrap.style.display=cat.value==="fine"?"block":"none";text.placeholder=catHint(cat.value);}
+    toggle();
+    cat.onchange=function(){ui.ideaCat=cat.value;toggle();};
+    document.getElementById("db-idea-add").onclick=function(){
+      var t=text.value.trim(); if(!t)return;
+      var amount=Number((document.getElementById("db-idea-amount")||{value:1}).value)||1;
+      addIdea(cat.value,t,amount);
+    };
+    document.querySelectorAll(".db-chip").forEach(function(b){b.onclick=function(){ui.ideaFilter=b.dataset.f;renderIdeaList();updateFilterChips();};});
+    renderIdeaList();
+  }
+
+  loadAll();
+  (function wireLiveUpdates(){
+    var s=store();
+    if(s && typeof s.onChange==="function"){
+      s.onChange(function(){ if(!state.editing) loadAll(); });
+    }
+  })();
+})();
+</script>
+</body>
+</html>
