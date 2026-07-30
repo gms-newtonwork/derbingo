@@ -95,6 +95,10 @@
   .db-ledger-voided{font-size:11px;color:var(--muted);font-style:italic;white-space:nowrap}
   .db-ledger-x{width:20px;height:20px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer;font-size:13px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}
   .db-ledger-x:hover{border-color:var(--red);color:var(--red)}
+  .db-log-row{border-top:1px solid var(--border);padding-top:8px}
+  .db-log-row:first-child{border-top:none;padding-top:0}
+  .db-log-old{font-size:13px;font-weight:600;text-decoration:line-through;color:var(--muted)}
+  .db-log-meta{font-size:12px;color:var(--muted);margin-top:2px}
   /* ideas */
   .db-chips{display:flex;gap:8px;flex-wrap:wrap}
   .db-chip{font-size:13px;font-weight:600;cursor:pointer;border-radius:4px;padding:6px 12px;border:1px solid var(--border);background:var(--card);color:var(--slate)}
@@ -255,11 +259,13 @@
     for(r=0;r<5;r++)l.push([0,1,2,3,4].map(function(c){return r*5+c;}));
     for(c=0;c<5;c++)l.push([0,1,2,3,4].map(function(r){return r*5+c;}));
     l.push([0,6,12,18,24]); l.push([4,8,12,16,20]); return l;})();
+  var CENTRE_SQUARE=12;
 
   var state={me:"",board:ACTIVITIES.slice(),squares:ACTIVITIES.map(function(){return {completedBy:[]};}),
-    fines:[],ideas:[],players:[],view:"board",editing:false,loading:true,storageAvailable:true};
+    fines:[],ideas:[],players:[],completedLog:[],
+    view:"board",editing:false,loading:true,storageAvailable:true};
   var ui={ideaFilter:"all",ideaCat:"activity",finePerson:null,fineOpt:0};
-  var busy=false;
+  var busy=false, swapInProgress=false;
   var root=document.getElementById("app");
 
   /* ---- storage (live check every call) ---- */
@@ -310,6 +316,77 @@
     var extra=state.ideas.filter(function(i){return i.category==="fine";}).map(function(i){return {reason:i.text,amount:i.amount||1};});
     return FINE_PRESETS.concat(extra);
   }
+  function lineLabel(idx){
+    if(idx<5)return "Row "+(idx+1);
+    if(idx<10)return "Column "+(idx-4);
+    return idx===10?"Diagonal ↘":"Diagonal ↙";
+  }
+
+  /* ---- line completion: swap a newly-lit line's squares for top-voted
+     board suggestions, keeping the centre square fixed and a log of
+     what got retired ---- */
+  function unusedBoardIdeas(){
+    return state.ideas.filter(function(i){return i.category==="activity"&&!i.used;})
+      .slice().sort(function(a,b){return b.votes.length-a.votes.length||a.ts-b.ts;});
+  }
+  function acquireIdeaFor(sqIdx){
+    var candidates=unusedBoardIdeas();
+    function tryNext(pos){
+      if(pos>=candidates.length)return Promise.resolve(null);
+      var idea=candidates[pos];
+      return sGet(idea.id,true).then(function(latest){
+        var cur=idea;
+        if(latest&&latest.value){try{cur=JSON.parse(latest.value);}catch(e){}}
+        if(cur.used)return tryNext(pos+1);
+        cur.used=true; cur.usedForSquare=sqIdx;
+        return sSet(idea.id,JSON.stringify(cur),true).then(function(){
+          state.ideas=state.ideas.map(function(x){return x.id===idea.id?cur:x;});
+          return cur;
+        });
+      });
+    }
+    return tryNext(0);
+  }
+  function swapLine(lineIdx){
+    var squaresToSwap=LINES[lineIdx].filter(function(i){return i!==CENTRE_SQUARE;});
+    var entries=[],changed=[],chain=Promise.resolve();
+    squaresToSwap.forEach(function(sqIdx){
+      chain=chain.then(function(){
+        return acquireIdeaFor(sqIdx).then(function(idea){
+          if(!idea)return;
+          entries.push({squareIndex:sqIdx,oldText:state.board[sqIdx],newText:idea.text,
+            completedBy:state.squares[sqIdx].completedBy.slice(),lineIndex:lineIdx,ts:Date.now()});
+          state.board[sqIdx]=idea.text; state.squares[sqIdx]={completedBy:[]}; changed.push(sqIdx);
+        });
+      });
+    });
+    return chain.then(function(){
+      if(changed.length===0)return;
+      var writes=[sSet("board",JSON.stringify(state.board),true)];
+      changed.forEach(function(sqIdx){writes.push(sSet("square:"+sqIdx,JSON.stringify(state.squares[sqIdx]),true));});
+      return Promise.all(writes).then(function(){
+        if(entries.length===0)return;
+        return sGet("completedLog",true).then(function(latestLog){
+          var log=state.completedLog.slice();
+          if(latestLog&&latestLog.value){try{log=JSON.parse(latestLog.value);}catch(e){}}
+          log=entries.concat(log);
+          return sSet("completedLog",JSON.stringify(log),true).then(function(){state.completedLog=log;});
+        });
+      });
+    });
+  }
+  function processLineCompletions(){
+    if(swapInProgress)return Promise.resolve();
+    var lit=litFlags(); var completedNow=[];
+    LINES.forEach(function(ln,idx){
+      if(ln.every(function(i){return lit[i];}))completedNow.push(idx);
+    });
+    if(completedNow.length===0)return Promise.resolve();
+    swapInProgress=true;
+    var chain=Promise.resolve();
+    completedNow.forEach(function(lineIdx){chain=chain.then(function(){return swapLine(lineIdx);});});
+    return chain.then(function(){swapInProgress=false;},function(){swapInProgress=false;});
+  }
 
   /* ---- load & actions ---- */
   function loadAll(){
@@ -331,6 +408,10 @@
     .then(function(){return sList("player:",true);})
     .then(function(l){return Promise.all((l.keys||[]).map(function(k){return sGet(k,true);}));})
     .then(function(res){var out=[];res.forEach(function(r){if(r&&r.value){try{var p=JSON.parse(r.value);if(p&&p.name)out.push(p.name);}catch(e){}}});state.players=out;})
+    .then(function(){return sGet("completedLog",true);}).then(function(r){
+      if(r&&r.value){try{var a=JSON.parse(r.value);if(Array.isArray(a))state.completedLog=a;}catch(e){}}
+    })
+    .then(function(){return processLineCompletions();})
     .then(function(){state.loading=false;renderApp();})
     .catch(function(){state.loading=false;renderApp();});
   }
@@ -351,7 +432,7 @@
       if(cur.completedBy.some(function(p){return slug(p.person)===slug(state.me);})){busy=false;return;}
       cur.completedBy.push({person:state.me,ts:Date.now()});
       return sSet("square:"+i,JSON.stringify(cur),true).then(function(){state.squares[i]=cur;});
-    }).then(function(){busy=false;renderApp();});
+    }).then(function(){return processLineCompletions();}).then(function(){busy=false;renderApp();});
   }
   function addFine(person,reason,amount){
     if(busy)return; person=(person||"").trim(); if(!person||!reason||!amount)return; busy=true;
@@ -440,13 +521,20 @@
     return '<div class="db-banner"><div class="db-note">Shared saving isn\'t active in this view, so your changes stay on this device only. Open the published or shared link and everything will sync across the whole team.</div></div>';
   }
   function bannerHTML(lit){
-    var lines=completedLines(lit); var pot=teamFineTotal(); var full=lit.every(Boolean);
-    if(lines.length>0 && pot<TEAM_FINE_CEILING){
+    var pot=teamFineTotal(); var full=lit.every(Boolean);
+    /* a completed line's squares get swapped out (and reset) almost immediately,
+       so count lines that are either currently lit or already retired via a swap,
+       otherwise the "bingo" banner would flash and vanish before anyone sees it */
+    var idxSet={};
+    LINES.forEach(function(ln,idx){if(ln.every(function(i){return lit[i];}))idxSet[idx]=1;});
+    state.completedLog.forEach(function(e){idxSet[e.lineIndex]=1;});
+    var lineCount=Object.keys(idxSet).length;
+    if(lineCount>0 && pot<TEAM_FINE_CEILING){
       return '<div class="db-banner win"><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+C.orange+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.2 13.5 7 22l5-3 5 3-1.2-8.5"/></svg></span><div><strong>Bingo — the award is unlocked.</strong> '
-        +(full?"Full house, no less.":(lines.length+" line"+(lines.length>1?"s":"")+" complete"))
+        +(full?"Full house, no less.":(lineCount+" line"+(lineCount>1?"s":"")+" complete"))
         +' and the fine pot is under £'+TEAM_FINE_CEILING+'. Time to hand out the prize.</div></div>';
     }
-    if(lines.length>0){
+    if(lineCount>0){
       return '<div class="db-banner"><span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="'+C.slate+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><div>A line\'s complete — but the fine pot is <strong>£'+pot+'</strong>, over the £'+TEAM_FINE_CEILING+' limit. Bring the negativity down to claim the award.</div></div>';
     }
     return "";
@@ -478,7 +566,19 @@
     }).join("");
     return '<div class="db-boardtop"><span class="db-note">Tap a square when you\'ve done it.</span>'
       +'<button class="db-btn" id="db-edit-open"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+C.slate+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit board</button></div>'
-      +'<div class="db-grid" id="db-board-grid">'+cells+'</div>';
+      +'<div class="db-grid" id="db-board-grid">'+cells+'</div>'
+      +completedLogHTML();
+  }
+  function completedLogHTML(){
+    if(state.completedLog.length===0)return "";
+    var rows=state.completedLog.map(function(e){
+      var who=e.completedBy.map(function(p){return esc(p.person);}).join(", ")||"nobody logged";
+      return '<div class="db-log-row"><div class="db-log-old">'+esc(e.oldText)+'</div>'
+        +'<div class="db-log-meta">Completed by '+who+' · '+lineLabel(e.lineIndex)+' · swapped for "'+esc(e.newText)+'"</div></div>';
+    }).join("");
+    return '<div class="db-card" style="margin-top:10px"><div style="font-size:13px;font-weight:700;margin-bottom:8px">Completed squares</div>'
+      +'<div class="db-note" style="margin-bottom:8px">When a line lights up, its squares (bar the centre) swap out for the top-voted board suggestions. Retired squares live here.</div>'
+      +'<div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto">'+rows+'</div></div>';
   }
   function editorHTML(){
     var rows=state.board.map(function(t,i){
@@ -561,7 +661,8 @@
     box.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+shown.map(function(i){
       var voted=i.votes.some(function(v){return slug(v)===slug(state.me);});
       return '<div class="db-card db-idea"><button class="db-vote'+(voted?" on":"")+'" data-vote="'+esc(i.id)+'">▲<span>'+i.votes.length+'</span></button>'
-        +'<div style="flex:1;min-width:0"><div class="db-idea-text">'+esc(i.text)+(i.category==="fine"&&i.amount?(" (£"+i.amount+")"):"")+'</div>'
+        +'<div style="flex:1;min-width:0"><div class="db-idea-text">'+esc(i.text)+(i.category==="fine"&&i.amount?(" (£"+i.amount+")"):"")
+        +(i.category==="activity"&&i.used?' <span style="font-size:11px;font-weight:700;color:'+C.orange+'">✓ on board</span>':"")+'</div>'
         +'<div class="db-idea-meta">'+esc(CAT_LABEL[i.category])+' · suggested by '+esc(i.author)+'</div></div></div>';
     }).join("")+'</div>';
     box.querySelectorAll("[data-vote]").forEach(function(b){b.onclick=function(){toggleVote(b.getAttribute("data-vote"));};});
@@ -575,7 +676,8 @@
       +'<li>Tick a square when you\'ve done that activity. Each one earns you '+PT_ACTIVITY+' points.</li>'
       +'<li>First to a square gets a '+PT_PIONEER+'-point pioneer bonus — reward for going beyond Nando\'s.</li>'
       +'<li>A square only lights up for the <strong style="color:var(--slate)">team</strong> once '+THRESHOLD+' different people have done it. Everyone who contributed gets another '+PT_TEAM+' points. No solo-running the board.</li>'
-      +'<li>Bingo is any full row, column or diagonal of lit squares. Fill all 25 for a full house.</li></ul>'
+      +'<li>Bingo is any full row, column or diagonal of lit squares. Fill all 25 for a full house.</li>'
+      +'<li>Every time a line lights up, its squares swap out for the top-voted board suggestions — except the centre, which stays "Team meal out, anywhere but Nando\'s" for good. Retired squares are kept in the completed log under the board.</li></ul>'
       +'<h2>The stick</h2><ul>'
       +'<li>Negativity about Derbyshire is a fine, logged on the Fines tab by anyone. Every £1 fined docks '+PT_PER_FINE_POUND+' points from that person.</li>'
       +'<li>Your fines build the house you live in — stay clean and you\'re in Chatsworth; keep moaning and you\'re in a caravan on the moor.</li>'
