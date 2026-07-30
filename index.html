@@ -428,7 +428,7 @@
   }
   function tabsHTML(){
     function t(v,label){return '<button class="db-btn'+(state.view===v?" active":"")+'" data-view="'+v+'">'+label+'</button>';}
-    return '<div class="db-tabs">'+t("board","Board")+t("leaderboard","Leaderboard")+t("house","The house you built")+t("ideas","Suggestions")+t("rules","How it works")+'</div>';
+    return '<div class="db-tabs">'+t("board","Board")+t("leaderboard","Leaderboard")+t("house","Fines")+t("ideas","Suggestions")+t("rules","How it works")+'</div>';
   }
   function renderView(){
     var v=document.getElementById("db-view");
@@ -515,7 +515,7 @@
     var chips='<button class="db-chip'+(ui.ideaFilter==="all"?" active":"")+'" data-f="all">All</button>'
       +IDEA_CATEGORIES.map(function(c){return '<button class="db-chip'+(ui.ideaFilter===c.key?" active":"")+'" data-f="'+c.key+'">'+c.label+'</button>';}).join("");
     return '<div class="db-stack">'
-      +'<div class="db-card"><div class="db-note" style="margin-bottom:10px">Pitch a new board square, an award idea, or a fineable offence. Everyone can upvote. Fine ideas appear straight away in the fine list on the house tab; top board ideas can be rolled in via Edit board.</div>'
+      +'<div class="db-card"><div class="db-note" style="margin-bottom:10px">Pitch a new board square, an award idea, or a fineable offence. Everyone can upvote. Fine ideas appear straight away in the fine list on the Fines tab; top board ideas can be rolled in via Edit board.</div>'
       +'<div class="db-formrow"><select class="db-sel" id="db-idea-cat">'+catOpts+'</select>'
       +'<input class="db-inp" id="db-idea-text" placeholder="'+esc(catHint(ui.ideaCat))+'" style="flex:1;min-width:180px"/>'
       +'<span id="db-idea-amt-wrap" style="display:'+amtDisplay+'"><input class="db-inp" id="db-idea-amount" type="number" min="1" value="1" style="width:64px" title="Fine amount in £"/></span>'
@@ -547,7 +547,7 @@
       +'<li>A square only lights up for the <strong style="color:var(--slate)">team</strong> once '+THRESHOLD+' different people have done it. Everyone who contributed gets another '+PT_TEAM+' points. No solo-running the board.</li>'
       +'<li>Bingo is any full row, column or diagonal of lit squares. Fill all 25 for a full house.</li></ul>'
       +'<h2>The stick</h2><ul>'
-      +'<li>Negativity about Derbyshire is a fine, logged on the house tab by anyone. Every £1 fined docks '+PT_PER_FINE_POUND+' points from that person.</li>'
+      +'<li>Negativity about Derbyshire is a fine, logged on the Fines tab by anyone. Every £1 fined docks '+PT_PER_FINE_POUND+' points from that person.</li>'
       +'<li>Your fines build the house you live in — stay clean and you\'re in Chatsworth; keep moaning and you\'re in a caravan on the moor.</li>'
       +'<li>The team can\'t claim bingo while the fine pot is £'+TEAM_FINE_CEILING+' or over. A line isn\'t enough if morale\'s in the gutter.</li></ul>'
       +'<h2>Running the board</h2><ul>'
