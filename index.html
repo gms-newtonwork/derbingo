@@ -257,7 +257,7 @@
     l.push([0,6,12,18,24]); l.push([4,8,12,16,20]); return l;})();
 
   var state={me:"",board:ACTIVITIES.slice(),squares:ACTIVITIES.map(function(){return {completedBy:[]};}),
-    fines:[],ideas:[],view:"board",editing:false,loading:true,storageAvailable:true};
+    fines:[],ideas:[],players:[],view:"board",editing:false,loading:true,storageAvailable:true};
   var ui={ideaFilter:"all",ideaCat:"activity",finePerson:null,fineOpt:0};
   var busy=false;
   var root=document.getElementById("app");
@@ -281,6 +281,7 @@
   function peopleList(){
     var map={},order=[];
     function add(n){var k=slug(n);if(!map[k]){map[k]=n;order.push(n);}}
+    state.players.forEach(function(p){add(p);});
     state.squares.forEach(function(s){s.completedBy.forEach(function(p){add(p.person);});});
     state.fines.forEach(function(f){add(f.person);});
     if(state.me)add(state.me);
@@ -327,10 +328,17 @@
     .then(function(){return sList("idea:",true);})
     .then(function(l){return Promise.all((l.keys||[]).map(function(k){return sGet(k,true);}));})
     .then(function(res){var out=[];res.forEach(function(r){if(r&&r.value){try{out.push(JSON.parse(r.value));}catch(e){}}});out.sort(function(a,b){return b.ts-a.ts;});state.ideas=out;})
+    .then(function(){return sList("player:",true);})
+    .then(function(l){return Promise.all((l.keys||[]).map(function(k){return sGet(k,true);}));})
+    .then(function(res){var out=[];res.forEach(function(r){if(r&&r.value){try{var p=JSON.parse(r.value);if(p&&p.name)out.push(p.name);}catch(e){}}});state.players=out;})
     .then(function(){state.loading=false;renderApp();})
     .catch(function(){state.loading=false;renderApp();});
   }
-  function saveName(n){n=(n||"").trim();if(!n)return;state.me=n;sSet("me",n,false);renderApp();}
+  function saveName(n){
+    n=(n||"").trim();if(!n)return; state.me=n; sSet("me",n,false);
+    sSet("player:"+slug(n),JSON.stringify({name:n,ts:Date.now()}),true);
+    renderApp();
+  }
   function saveBoard(draft){
     var clean=draft.map(function(t,i){return (t&&t.trim())?t.trim():ACTIVITIES[i];});
     state.board=clean; sSet("board",JSON.stringify(clean),true); state.editing=false; renderApp();
