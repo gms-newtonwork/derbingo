@@ -89,7 +89,12 @@
   .db-house-note{font-size:12px;color:var(--muted);line-height:1.4;margin-top:2px}
   .db-house-fines{font-size:12px;color:var(--muted);margin-top:8px}
   .db-ledger-row{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+  .db-ledger-row.voided{opacity:0.55}
   .db-ledger-amt{color:var(--muted);white-space:nowrap}
+  .db-ledger-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .db-ledger-voided{font-size:11px;color:var(--muted);font-style:italic;white-space:nowrap}
+  .db-ledger-x{width:20px;height:20px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer;font-size:13px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}
+  .db-ledger-x:hover{border-color:var(--red);color:var(--red)}
   /* ideas */
   .db-chips{display:flex;gap:8px;flex-wrap:wrap}
   .db-chip{font-size:13px;font-weight:600;cursor:pointer;border-radius:4px;padding:6px 12px;border:1px solid var(--border);background:var(--card);color:var(--slate)}
@@ -272,7 +277,7 @@
   function distinct(sq){var set={};sq.completedBy.forEach(function(p){set[slug(p.person)]=1;});return Object.keys(set).length;}
   function litFlags(){return state.squares.map(function(s){return distinct(s)>=THRESHOLD;});}
   function completedLines(lit){return LINES.filter(function(ln){return ln.every(function(i){return lit[i];});});}
-  function teamFineTotal(){return state.fines.reduce(function(a,f){return a+f.amount;},0);}
+  function teamFineTotal(){return state.fines.filter(function(f){return !f.voided;}).reduce(function(a,f){return a+f.amount;},0);}
   function peopleList(){
     var map={},order=[];
     function add(n){var k=slug(n);if(!map[k]){map[k]=n;order.push(n);}}
@@ -294,7 +299,7 @@
         if(lit[i])st.teamContribs++;
       });
     });
-    state.fines.forEach(function(f){ensure(f.person).fines+=f.amount;});
+    state.fines.forEach(function(f){if(!f.voided)ensure(f.person).fines+=f.amount;});
     return Object.keys(map).map(function(k){var st=map[k];
       st.points=st.activities*PT_ACTIVITY+st.pioneers*PT_PIONEER+st.teamContribs*PT_TEAM-st.fines*PT_PER_FINE_POUND;
       return st;
@@ -344,6 +349,18 @@
     if(busy)return; person=(person||"").trim(); if(!person||!reason||!amount)return; busy=true;
     var entry={id:"fine:"+Date.now()+":"+Math.random().toString(36).slice(2,7),person:person,reason:reason,amount:Number(amount),ts:Date.now()};
     sSet(entry.id,JSON.stringify(entry),true).then(function(){state.fines.unshift(entry);busy=false;renderApp();});
+  }
+  function voidFine(id){
+    if(busy)return; busy=true;
+    sGet(id,true).then(function(latest){
+      var cur=state.fines.filter(function(x){return x.id===id;})[0];
+      if(latest&&latest.value){try{cur=JSON.parse(latest.value);}catch(e){}}
+      if(!cur||cur.voided){busy=false;return;}
+      cur.voided=true; cur.voidedBy=state.me; cur.voidedTs=Date.now();
+      return sSet(id,JSON.stringify(cur),true).then(function(){
+        state.fines=state.fines.map(function(x){return x.id===id?cur:x;});
+      });
+    }).then(function(){busy=false;renderApp();});
   }
   function addIdea(category,text,amount){
     if(busy)return; text=(text||"").trim(); if(!text)return; busy=true;
@@ -498,8 +515,13 @@
     }).join("");
     var ledger="";
     if(state.fines.length>0){
-      var rows=state.fines.map(function(f){return '<div class="db-ledger-row"><span><strong>'+esc(f.person)+'</strong> — '+esc(f.reason)+'</span><span class="db-ledger-amt">£'+f.amount+'</span></div>';}).join("");
-      ledger='<div class="db-card"><div style="font-size:13px;font-weight:700;margin-bottom:8px">The ledger</div><div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto">'+rows+'</div></div>';
+      var rows=state.fines.map(function(f){
+        var right=f.voided
+          ? '<span class="db-ledger-amt" style="text-decoration:line-through">£'+f.amount+'</span><span class="db-ledger-voided">Voided'+(f.voidedBy?(' by '+esc(f.voidedBy)):'')+'</span>'
+          : '<span class="db-ledger-amt">£'+f.amount+'</span><button class="db-ledger-x" data-void="'+esc(f.id)+'" title="Void this fine (it stays in the log)" aria-label="Void this fine">×</button>';
+        return '<div class="db-ledger-row'+(f.voided?" voided":"")+'"><span><strong>'+esc(f.person)+'</strong> — '+esc(f.reason)+'</span><span class="db-ledger-right">'+right+'</span></div>';
+      }).join("");
+      ledger='<div class="db-card"><div style="font-size:13px;font-weight:700;margin-bottom:8px">The ledger</div><div class="db-note" style="margin-bottom:8px">Voiding a fine takes it off the pot and off that person\'s tally, but it stays here — struck through — so nobody can quietly wipe their record.</div><div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto">'+rows+'</div></div>';
     }
     return '<div class="db-stack">'
       +'<div class="db-card"><div class="db-note" style="margin-bottom:10px">Every moan about Derbyshire is a fine — and your fines build the house you live in. Anyone can log one. Team pot: <strong style="color:'+(pot>=15?C.red:C.slate)+'">£'+pot+'</strong> (must stay under £15 to claim bingo).</div>'
@@ -609,6 +631,7 @@
         if(!reason)return; addFine(p,reason,amt);
       }else{ addFine(p,opts[idx].reason,opts[idx].amount); }
     };
+    document.querySelectorAll("[data-void]").forEach(function(b){b.onclick=function(){voidFine(b.getAttribute("data-void"));};});
   }
   function wireIdeas(){
     var cat=document.getElementById("db-idea-cat"); cat.value=ui.ideaCat;
