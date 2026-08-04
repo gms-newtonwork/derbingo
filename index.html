@@ -203,7 +203,7 @@
 (function(){
   "use strict";
   var C={orange:"#FF6223",slate:"#282D37",muted:"#6B7079",red:"#B3261E"};
-  var THRESHOLD=2, TEAM_FINE_CEILING=15;
+  var THRESHOLD=2, TEAM_FINE_CEILING=50;
   var PT_ACTIVITY=10, PT_PIONEER=5, PT_TEAM=5, PT_PER_FINE_POUND=3;
 
   var ACTIVITIES=[
@@ -632,7 +632,7 @@
       ledger='<div class="db-card"><div style="font-size:13px;font-weight:700;margin-bottom:8px">The ledger</div><div class="db-note" style="margin-bottom:8px">Voiding a fine takes it off the pot and off that person\'s tally, but it stays here — struck through — so nobody can quietly wipe their record.</div><div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto">'+rows+'</div></div>';
     }
     return '<div class="db-stack">'
-      +'<div class="db-card"><div class="db-note" style="margin-bottom:10px">Every moan about Derbyshire is a fine — and your fines build the house you live in. Anyone can log one. Team pot: <strong style="color:'+(pot>=15?C.red:C.slate)+'">£'+pot+'</strong> (must stay under £15 to claim bingo).</div>'
+      +'<div class="db-card"><div class="db-note" style="margin-bottom:10px">Every moan about Derbyshire is a fine — and your fines build the house you live in. Anyone can log one. Team pot: <strong style="color:'+(pot>=TEAM_FINE_CEILING?C.red:C.slate)+'">£'+pot+'</strong> (must stay under £'+TEAM_FINE_CEILING+' to claim bingo).</div>'
       +'<div class="db-formrow"><select class="db-sel" id="db-fine-person">'+personOpts+'</select>'
       +'<select class="db-sel" id="db-fine-opt" style="flex:1;min-width:180px">'+fineOpts+'</select>'
       +'<span id="db-fine-custom" style="display:none;gap:8px;flex:1;min-width:200px"><input class="db-inp" id="db-fine-reason" placeholder="Reason" style="flex:1;min-width:120px"/><input class="db-inp" id="db-fine-amount" type="number" min="1" value="1" style="width:64px"/></span>'
